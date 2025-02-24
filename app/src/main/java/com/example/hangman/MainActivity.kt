@@ -4,9 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import android.content.res.Configuration
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -23,10 +21,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.focus.focusModifier
-import androidx.compose.ui.geometry.Offset
+
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
+
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -56,20 +53,20 @@ fun Hangman(){
     var wordPair by rememberSaveable {mutableStateOf(words.random()) }
     var word by rememberSaveable { mutableStateOf(wordPair.first) }
     var hint by rememberSaveable { mutableStateOf(wordPair.second) }
-    var guessedLetters by rememberSaveable { mutableStateOf(setOf<Char>()) }
+    var guessed by rememberSaveable { mutableStateOf(setOf<Char>()) }
     var incorrectScore by rememberSaveable { mutableStateOf(0) }
     var hintClicks by rememberSaveable { mutableStateOf(0) }
-    var disabledLetters by rememberSaveable { mutableStateOf(setOf<Char>()) }
+    var disabled by rememberSaveable { mutableStateOf(setOf<Char>()) }
     val maxIncorrectScore = 6
-    val wordDisplay = word.map { if (it in guessedLetters) it else '_' }.joinToString(" ")
+    val wordDisplay = word.map { if (it in guessed) it else '_' }.joinToString(" ")
     val gameOver = incorrectScore >= maxIncorrectScore
-    val gameWon = word.all { it in guessedLetters }
+    val gameWon = word.all { it in guessed }
     fun reset(){
         wordPair = words.random()
         word = wordPair.first
         hint = wordPair.second
-        guessedLetters = setOf()
-        disabledLetters = setOf()
+        guessed = setOf()
+        disabled = setOf()
         incorrectScore = 0
         hintClicks = 0
     }
@@ -82,14 +79,14 @@ fun Hangman(){
         if(isLandscape){
             Row(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.weight(1f)) {
-                    LetterButtons(guessedLetters, disabledLetters, word, { guessedLetters = guessedLetters + it }) {
+                    Keyboard(guessed, disabled, word, { guessed = guessed + it }) {
                         incorrectScore++
                     }
                     HintButton(
                         hint, hintClicks, { hintClicks++ }, incorrectScore, maxIncorrectScore,
-                        word, guessedLetters,
-                        onDisableIncorrectLetters = { disabledLetters = disabledLetters + it },
-                        onDisableVowels = { guessedLetters = guessedLetters + it},
+                        word, guessed,
+                        onDisableIncorrectLetters = { disabled = disabled + it },
+                        onDisableVowels = { guessed = guessed + it},
                         onIncorrect = { incorrectScore++ }
                     )
                 }
@@ -106,9 +103,9 @@ fun Hangman(){
                         }
                         HintButton(
                             hint, hintClicks, { hintClicks++ }, incorrectScore, maxIncorrectScore,
-                            word, guessedLetters,
-                            onDisableIncorrectLetters = { disabledLetters = disabledLetters + it },
-                            onDisableVowels = { guessedLetters = guessedLetters + it },
+                            word, guessed,
+                            onDisableIncorrectLetters = { disabled = disabled + it },
+                            onDisableVowels = { guessed = guessed + it },
                             onIncorrect = { incorrectScore++ }
                         )
 
@@ -128,19 +125,19 @@ fun Hangman(){
                     Spacer(modifier = Modifier.height(16.dp))
             Row {
 
-                LetterButtons(
-                    guessedLetters,
-                    disabledLetters,
+                Keyboard(
+                    guessed,
+                    disabled,
                     word,
-                    { guessedLetters = guessedLetters + it }) {
+                    { guessed = guessed + it }) {
                     incorrectScore++
                 }
             }
                     HintButton(
                         hint, hintClicks, { hintClicks++ }, incorrectScore, maxIncorrectScore,
-                        word, guessedLetters,
-                        onDisableIncorrectLetters = { disabledLetters = disabledLetters + it },
-                        onDisableVowels = { guessedLetters = guessedLetters + it },
+                        word, guessed,
+                        onDisableIncorrectLetters = { disabled = disabled + it },
+                        onDisableVowels = { guessed = guessed + it },
                         onIncorrect = { incorrectScore++ }
                     )
             Button(onClick = { reset() }) {
@@ -158,9 +155,9 @@ fun Hangman(){
 }
 
 @Composable
-fun LetterButtons(
-    guessedLetters: Set<Char>,
-    disabledLetters: Set<Char>,
+fun Keyboard(
+    guessed: Set<Char>,
+    disabled: Set<Char>,
     word: String,
     onLetterSelected: (Char) -> Unit,
     onIncorrect: () -> Unit
@@ -171,15 +168,14 @@ fun LetterButtons(
         alphabet.chunked(5).forEach { row ->
             Row {
                 row.forEach { letter ->
-                    val disabled = letter in guessedLetters || letter in disabledLetters
-                    println("disabled Letters at keyboard $disabledLetters")
+                    val disable= letter in guessed|| letter in disabled
 
                     Button(
                         onClick = {
                             onLetterSelected(letter)
                             if (letter !in word) onIncorrect()
                         },
-                        enabled = !disabled,
+                        enabled = !disable,
                         modifier = Modifier.padding(2.dp)
                     ) {
                         Text(letter.toString())
@@ -221,14 +217,14 @@ fun HintButton(
                         val incorrectLetters = ('A'..'Z').filter { it !in word && it !in guessedLetters }
                         val lettersToDisable = incorrectLetters.shuffled().take(incorrectLetters.size / 2).toSet()
                         onDisableIncorrectLetters(lettersToDisable)
-                        onIncorrect() // Costs 1 turn
+                        onIncorrect()
                         message = "Disabled half of the wrong letters (costs 1 turn)"
                     }
                     2 -> {
                         val vowelsToDisable = vowels.filter { it in word && it !in guessedLetters }.toSet()
 
                         onDisableVowels(vowelsToDisable)
-                        onIncorrect() // Costs 1 turn
+                        onIncorrect()
                         message = "Showing all vowels (costs 1 turn)"
                     }
                 }
