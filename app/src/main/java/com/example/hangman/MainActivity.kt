@@ -61,6 +61,7 @@ fun Hangman(){
     val wordDisplay = word.map { if (it in guessed) it else '_' }.joinToString(" ")
     val gameOver = incorrectScore >= maxIncorrectScore
     val gameWon = word.all { it in guessed }
+    val context = LocalContext.current
     fun reset(){
         wordPair = words.random()
         word = wordPair.first
@@ -82,28 +83,22 @@ fun Hangman(){
                     Keyboard(guessed, disabled, word, { guessed = guessed + it }) {
                         incorrectScore++
                     }
-                    HintButton(
-                        hint, hintClicks, { hintClicks++ }, incorrectScore, maxIncorrectScore,
-                        word, guessed,
-                        onDisableIncorrectLetters = { disabled = disabled + it },
-                        onDisableVowels = { guessed = guessed + it},
-                        onIncorrect = { incorrectScore++ }
-                    )
+
                 }
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     HangmanDrawing(incorrectScore)
                     Spacer(modifier = Modifier.height(16.dp))
                     BasicText(text = wordDisplay, style = MaterialTheme.typography.headlineMedium)
                     Spacer(modifier = Modifier.height(16.dp))
-                    if (gameWon) Text("You Win!", color = Color.Green)
-                    if (gameOver) Text("You Lose! The word was $word", color = Color.Red)
-                    Row{
+                    if (gameWon)Toast.makeText(context, "You Won!", Toast.LENGTH_SHORT).show()
+                    if (gameOver)Toast.makeText(context, "You Lose! The word was $word", Toast.LENGTH_SHORT).show()
+                    Row(modifier = Modifier.fillMaxWidth()){
                         Button(onClick = { reset() }) {
                             Text("New Game")
                         }
                         HintButton(
-                            hint, hintClicks, { hintClicks++ }, incorrectScore, maxIncorrectScore,
-                            word, guessed,
+                            hint, hintClicks, { hintClicks++ },
+                            word, guessed, incorrectScore, maxIncorrectScore,
                             onDisableIncorrectLetters = { disabled = disabled + it },
                             onDisableVowels = { guessed = guessed + it },
                             onIncorrect = { incorrectScore++ }
@@ -116,14 +111,16 @@ fun Hangman(){
         }
     }else{
 
-                    HangmanDrawing(incorrectScore)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    BasicText(text = wordDisplay, style = MaterialTheme.typography.headlineMedium)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    if (gameWon) Text("You Win!", color = Color.Green)
-                    if (gameOver) Text("You Lose! The word was $word", color = Color.Red)
-                    Spacer(modifier = Modifier.height(16.dp))
-            Row {
+
+        HangmanDrawing(incorrectScore)
+            Spacer(modifier = Modifier.height(16.dp))
+            BasicText(text = wordDisplay, style = MaterialTheme.typography.headlineMedium)
+            Spacer(modifier = Modifier.height(16.dp))
+            if (gameWon)Toast.makeText(context, "You Won!", Toast.LENGTH_SHORT).show()
+            if (gameOver)Toast.makeText(context, "You Lose! The word was $word", Toast.LENGTH_SHORT).show()
+
+            Spacer(modifier = Modifier.height(16.dp))
+
 
                 Keyboard(
                     guessed,
@@ -132,14 +129,8 @@ fun Hangman(){
                     { guessed = guessed + it }) {
                     incorrectScore++
                 }
-            }
-                    HintButton(
-                        hint, hintClicks, { hintClicks++ }, incorrectScore, maxIncorrectScore,
-                        word, guessed,
-                        onDisableIncorrectLetters = { disabled = disabled + it },
-                        onDisableVowels = { guessed = guessed + it },
-                        onIncorrect = { incorrectScore++ }
-                    )
+
+
             Button(onClick = { reset() }) {
                 Text("New Game")
             }
@@ -191,10 +182,10 @@ fun HintButton(
     hint: String,
     hintClicks: Int,
     onHintClick: () -> Unit,
-    incorrectGuesses: Int,
-    maxIncorrectGuesses: Int,
     word: String,
-    guessedLetters: Set<Char>,
+    guessed: Set<Char>,
+    incorrectScore: Int,
+    maxIncorrectScore: Int,
     onDisableIncorrectLetters: (Set<Char>) -> Unit,
     onDisableVowels: (Set<Char>) -> Unit,
     onIncorrect: () -> Unit
@@ -206,26 +197,34 @@ fun HintButton(
     //source: ChatGPT
     Button(
         onClick = {
-            if (incorrectGuesses >= maxIncorrectGuesses - 1) {
+            if (incorrectScore >= maxIncorrectScore - 1) {
                 Toast.makeText(context, "Hint not available", Toast.LENGTH_SHORT).show()
             } else {
                 when (hintClicks) {
                     0 -> {
                         message = hint
                     }
+
                     1 -> {
-                        val incorrectLetters = ('A'..'Z').filter { it !in word && it !in guessedLetters }
-                        val lettersToDisable = incorrectLetters.shuffled().take(incorrectLetters.size / 2).toSet()
+                        val incorrectLetters = ('A'..'Z').filter { it !in word && it !in guessed }
+                        val lettersToDisable =
+                            incorrectLetters.shuffled().take(incorrectLetters.size / 2).toSet()
                         onDisableIncorrectLetters(lettersToDisable)
                         onIncorrect()
                         message = "Disabled half of the wrong letters (costs 1 turn)"
                     }
+
                     2 -> {
-                        val vowelsToDisable = vowels.filter { it in word && it !in guessedLetters }.toSet()
+                        val vowelsToDisable = vowels.filter { it in word && it !in guessed }.toSet()
 
                         onDisableVowels(vowelsToDisable)
                         onIncorrect()
                         message = "Showing all vowels (costs 1 turn)"
+                    }
+
+                    3 -> {
+                        Toast.makeText(context, "Hint not available", Toast.LENGTH_SHORT).show()
+
                     }
                 }
                 onHintClick()
@@ -247,16 +246,16 @@ fun HangmanDrawing(incorrectGuesses: Int) {
     //source: ChatGPT
     Canvas(modifier = Modifier.size(200.dp)) {
         val stroke = Stroke(width = 4f)
-        drawLine(Color.Black, start = center.copy(y = size.height), end = center.copy(y = 20f), strokeWidth = 4f) // Pole
-        drawLine(Color.Black, start = center.copy(y = 20f), end = center.copy(x = center.x + 40, y = 20f), strokeWidth = 4f) // Top Bar
-        drawLine(Color.Black, start = center.copy(x = center.x + 40, y = 20f), end = center.copy(x = center.x + 40, y = 50f), strokeWidth = 4f) // Rope
+        drawLine(Color.Black, start = center.copy(y = size.height), end = center.copy(y = 20f), strokeWidth = 4f)
+        drawLine(Color.Black, start = center.copy(y = 20f), end = center.copy(x = center.x + 40, y = 20f), strokeWidth = 4f)
+        drawLine(Color.Black, start = center.copy(x = center.x + 40, y = 20f), end = center.copy(x = center.x + 40, y = 50f), strokeWidth = 4f)
 
-        if (incorrectGuesses > 0) drawCircle(Color.Black, radius = 30f, center = center.copy(x = center.x + 40, y = 70f)) // Head
-        if (incorrectGuesses > 1) drawLine(color=Color.Black, start = center.copy(center.x+40,90f), end = center.copy(center.x+40,160f), stroke.width) // Body
-        if (incorrectGuesses > 2) drawLine(color=Color.Black, start = center.copy(center.x+20,130f), end = center.copy(center.x+40,130f), stroke.width) // Arms
+        if (incorrectGuesses > 0) drawCircle(Color.Black, radius = 30f, center = center.copy(x = center.x + 40, y = 70f))
+        if (incorrectGuesses > 1) drawLine(color=Color.Black, start = center.copy(center.x+40,90f), end = center.copy(center.x+40,160f), stroke.width)
+        if (incorrectGuesses > 2) drawLine(color=Color.Black, start = center.copy(center.x+20,130f), end = center.copy(center.x+40,130f), stroke.width)
         if (incorrectGuesses > 3) drawLine(color=Color.Black, start = center.copy(center.x+40,130f), end = center.copy(center.x+60,130f), stroke.width)
-        if (incorrectGuesses > 4) drawLine(color=Color.Black, start = center.copy(center.x+40,140f), end = center.copy(center.x+20,180f), stroke.width) // Left Leg
-        if (incorrectGuesses > 5) drawLine(color=Color.Black, start = center.copy(center.x+40,140f), end = center.copy(center.x+60,180f), stroke.width) // Right Leg
+        if (incorrectGuesses > 4) drawLine(color=Color.Black, start = center.copy(center.x+40,140f), end = center.copy(center.x+20,180f), stroke.width)
+        if (incorrectGuesses > 5) drawLine(color=Color.Black, start = center.copy(center.x+40,140f), end = center.copy(center.x+60,180f), stroke.width)
     }
 }
 
